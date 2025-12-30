@@ -1,0 +1,14 @@
+Builds/
+*.xcodeprj
+*.sln
+*.vcxproj*
+.vs/
+
+.DS_Store
+
+*.exe
+*.dll
+*.pdb
+
+*.vst3
+*.component
