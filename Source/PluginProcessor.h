@@ -82,8 +82,10 @@ public:
     // Settings
     juce::String getWavOutputPath();
     juce::String getYtDlpPath();
+    juce::String getFfmpegPath();
     void setWavOutputPath(const juce::String& path);
     void setYtDlpPath(const juce::String& path);
+    void setFfmpegPath(const juce::String& path);
 
 private:
     //==============================================================================

@@ -91,6 +91,9 @@ private:
     juce::Label ytDlpPathLabel;
     juce::TextEditor ytDlpPathEditor;
     juce::TextButton ytDlpPathBrowseButton;
+    juce::Label ffmpegPathLabel;
+    juce::TextEditor ffmpegPathEditor;
+    juce::TextButton ffmpegPathBrowseButton;
 
     // Drawable objects for play icon
     std::unique_ptr<juce::Drawable> playIconDrawable;

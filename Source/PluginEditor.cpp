@@ -306,9 +306,21 @@ YTAudioProcessorEditor::YTAudioProcessorEditor (YTAudioProcessor& p)
     ytDlpPathBrowseButton.setButtonText("Browse...");
     ytDlpPathBrowseButton.addListener(this);
     settingsGroup.addAndMakeVisible(ytDlpPathBrowseButton);
+
+    ffmpegPathLabel.setText("ffmpeg Path:", juce::dontSendNotification);
+    ffmpegPathLabel.attachToComponent(&ffmpegPathEditor, true);
+    settingsGroup.addAndMakeVisible(ffmpegPathLabel);
+
+    ffmpegPathEditor.setReadOnly(true);
+    ffmpegPathEditor.setText(audioProcessor.getFfmpegPath());
+    settingsGroup.addAndMakeVisible(ffmpegPathEditor);
+
+    ffmpegPathBrowseButton.setButtonText("Browse...");
+    ffmpegPathBrowseButton.addListener(this);
+    settingsGroup.addAndMakeVisible(ffmpegPathBrowseButton);
     // --- End Settings UI ---
 
-    setSize (800, 680); // Height accommodates Key + Speed sliders and settings
+    setSize (800, 730); // Height accommodates Key + Speed sliders and the settings panel
 
     startTimerHz(30); // Start timer for UI updates
 }
@@ -389,12 +401,12 @@ void YTAudioProcessorEditor::resized()
     speedSlider.setBounds(speedArea);
 
     // Settings Group
-    auto settingsArea = bounds.removeFromBottom(150); // Allocate space for settings (height adjusted previously)
+    auto settingsArea = bounds.removeFromBottom(200); // Space for three settings rows
     settingsGroup.setBounds(settingsArea.reduced(padding, 0));
 
     auto settingsInnerArea = settingsGroup.getLocalBounds().reduced(padding * 2, padding * 3);
     settingsInnerArea.removeFromTop(5); // Top padding inside group box
-    
+
     auto row1 = settingsInnerArea.removeFromTop(30);
     wavPathLabel.setBounds(row1.removeFromLeft(120));
     wavPathBrowseButton.setBounds(row1.removeFromRight(80));
@@ -406,6 +418,13 @@ void YTAudioProcessorEditor::resized()
     ytDlpPathLabel.setBounds(row2.removeFromLeft(120));
     ytDlpPathBrowseButton.setBounds(row2.removeFromRight(80));
     ytDlpPathEditor.setBounds(row2.reduced(5, 0));
+
+    settingsInnerArea.removeFromTop(padding); // Spacer
+
+    auto row3 = settingsInnerArea.removeFromTop(30);
+    ffmpegPathLabel.setBounds(row3.removeFromLeft(120));
+    ffmpegPathBrowseButton.setBounds(row3.removeFromRight(80));
+    ffmpegPathEditor.setBounds(row3.reduced(5, 0));
 
     // Bottom row: Version display
     auto bottomArea = bounds.removeFromBottom(bottomRowHeight + padding).reduced(padding, 0);
@@ -478,6 +497,23 @@ void YTAudioProcessorEditor::buttonClicked(juce::Button* button)
             auto path = fc.getResult().getFullPathName();
             audioProcessor.setYtDlpPath(path);
             ytDlpPathEditor.setText(path, juce::dontSendNotification);
+        });
+    }
+    else if (button == &ffmpegPathBrowseButton)
+    {
+        chooser = std::make_unique<juce::FileChooser>("Select ffmpeg Executable...",
+                                                      juce::File(audioProcessor.getFfmpegPath()),
+                                                      "");
+        auto flags = juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles;
+
+        chooser->launchAsync(flags, [this](const juce::FileChooser& fc)
+        {
+            if (fc.getResults().isEmpty())
+                return;
+
+            auto path = fc.getResult().getFullPathName();
+            audioProcessor.setFfmpegPath(path);
+            ffmpegPathEditor.setText(path, juce::dontSendNotification);
         });
     }
 }

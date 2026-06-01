@@ -20,6 +20,7 @@ public:
         // Get settings from processor
         wavOutputPath = processor.getWavOutputPath();
         ytDlpPath = processor.getYtDlpPath();
+        ffmpegPath = processor.getFfmpegPath();
 
         outputDir = juce::File(wavOutputPath);
         tempFile = outputDir.getChildFile("downloaded_audio.wav"); // Initial placeholder name
@@ -28,122 +29,110 @@ public:
     void run() override
     {
         // 1. Create the output directory if it doesn't exist
-        if (! outputDir.exists())
+        if (! outputDir.exists() && ! outputDir.createDirectory())
         {
-            if (! outputDir.createDirectory())
-            {
-                // Failed to create directory, notify and abort.
-                auto self = juce::ReferenceCountedObjectPtr<DownloadThread>(this);
-                juce::MessageManager::callAsync([self] {
-                    self->processor.downloadFinished(false, {}, "Error: Could not create output directory: " + self->wavOutputPath);
-                });
-                return;
-            }
+            // Failed to create directory, notify and abort.
+            auto self = juce::ReferenceCountedObjectPtr<DownloadThread>(this);
+            juce::MessageManager::callAsync([self] {
+                self->processor.downloadFinished(false, {}, "Error: Could not create output directory: " + self->wavOutputPath);
+            });
+            return;
         }
 
-        // 2. Set up the debug log file within the output directory
+        // Debug log (written only if the download fails, to help diagnose).
         auto logFile = outputDir.getChildFile("yt-dlp-debug.log");
         if (logFile.existsAsFile())
             logFile.deleteFile();
 
-        // 3. Extract title and ID using yt-dlp --print
         juce::File cookieFile = outputDir.getChildFile("www.youtube.com_cookies.txt");
-        juce::String cookieOption;
+
+        // 2. Extract title and ID using yt-dlp --print (used to build the filename).
+        //    Arguments are passed directly to ChildProcess (no shell), so this works
+        //    identically on macOS and Windows without quoting/redirection tricks.
+        juce::StringArray metaArgs;
+        metaArgs.add(ytDlpPath);
         if (cookieFile.existsAsFile())
-            cookieOption = " --cookies " + cookieFile.getFullPathName().quoted();
-
-        juce::String titleIdCommand = ytDlpPath.quoted() + cookieOption + " --print title --print id --no-warnings --skip-download ";
-        titleIdCommand += url.quoted();
-        titleIdCommand += " > " + logFile.getFullPathName().quoted() + " 2>&1";
-
-        juce::StringArray titleIdArgs;
-        titleIdArgs.add("/bin/sh");
-        titleIdArgs.add("-c");
-        titleIdArgs.add(titleIdCommand);
-
-        juce::ChildProcess titleIdProcess;
-        juce::String titleIdOutput;
-        juce::String videoTitle;
-        juce::String videoId;
-
-        if (titleIdProcess.start(titleIdArgs))
         {
-            if (titleIdProcess.waitForProcessToFinish(30000)) // 30 seconds for metadata
+            metaArgs.add("--cookies");
+            metaArgs.add(cookieFile.getFullPathName());
+        }
+        metaArgs.add("--print"); metaArgs.add("title");
+        metaArgs.add("--print"); metaArgs.add("id");
+        metaArgs.add("--no-warnings");
+        metaArgs.add("--skip-download");
+        metaArgs.add(url);
+
+        juce::String metaOutput;
+        juce::String videoTitle, videoId;
+
+        if (runProcess(metaArgs, 30000, metaOutput)) // 30 seconds for metadata
+        {
+            juce::StringArray lines;
+            lines.addLines(metaOutput);
+            lines.removeEmptyStrings();
+
+            if (lines.size() >= 2)
             {
-                titleIdOutput = logFile.loadFileAsString();
-                juce::StringArray lines;
-                lines.addTokens(titleIdOutput.replace("---", ""), "\n", ""); // yt-dlp --print adds "---" between outputs
-                
-                if (lines.size() >= 2)
-                {
-                    videoTitle = lines[0].trim();
-                    videoId = lines[1].trim();
-                } else if (!titleIdOutput.contains("ERROR")) {
-                    videoTitle = "unknown_title";
-                    videoId = juce::String(juce::Time::getCurrentTime().toMilliseconds());
-                }
+                videoTitle = lines[0].trim();
+                videoId    = lines[1].trim();
             }
-            else
+            else if (! metaOutput.containsIgnoreCase("ERROR"))
             {
-                titleIdProcess.kill();
-                videoTitle = "timed_out_title";
-                videoId = juce::String(juce::Time::getCurrentTime().toMilliseconds());
+                videoTitle = "unknown_title";
             }
         }
         else
         {
-            videoTitle = "process_start_fail_title";
-            videoId = juce::String(juce::Time::getCurrentTime().toMilliseconds());
+            videoTitle = "timed_out_title";
         }
 
-        videoTitle = videoTitle.replaceCharacters(" /\\?:*\"<>|", "_");
-        videoId = videoId.replaceCharacters(" /\\?:*\"<>|", "_");
+        if (videoTitle.isEmpty())
+            videoTitle = "unknown_title";
+        if (videoId.isEmpty())
+            videoId = juce::String(juce::Time::getCurrentTime().toMilliseconds());
 
-        // 4. Construct final tempFile path
+        videoTitle = videoTitle.replaceCharacters(" /\\?:*\"<>|", "_");
+        videoId    = videoId.replaceCharacters(" /\\?:*\"<>|", "_");
+
+        // 3. Construct final tempFile path
         tempFile = outputDir.getChildFile(videoTitle + "_" + videoId + ".wav");
-        
         if (tempFile.existsAsFile())
             tempFile.deleteFile();
 
-        // 5. Build and execute the main download command
-        juce::String downloadCommand = ytDlpPath.quoted() + cookieOption + " --ffmpeg-location \"/opt/homebrew/bin/ffmpeg\" -x --audio-format wav -o ";
-        downloadCommand += tempFile.getFullPathName().quoted();
-        downloadCommand += " ";
-        downloadCommand += url.quoted();
-        downloadCommand += " > " + logFile.getFullPathName().quoted() + " 2>&1";
-
-        juce::StringArray downloadArgs;
-        downloadArgs.add("/bin/sh");
-        downloadArgs.add("-c");
-        downloadArgs.add(downloadCommand);
-
-        juce::ChildProcess process;
-        bool success = false;
-        juce::String output;
-
-        if (process.start(downloadArgs))
+        // 4. Download and extract audio to WAV.
+        juce::StringArray dlArgs;
+        dlArgs.add(ytDlpPath);
+        if (cookieFile.existsAsFile())
         {
-            if (process.waitForProcessToFinish(60000))
-            {
-                if (tempFile.existsAsFile())
-                {
-                    success = true;
-                }
-            }
-            else
-            {
-                process.kill();
-                output += "\n\nProcess timed out.";
-            }
-            output = logFile.loadFileAsString();
+            dlArgs.add("--cookies");
+            dlArgs.add(cookieFile.getFullPathName());
+        }
+        if (ffmpegPath.isNotEmpty())
+        {
+            dlArgs.add("--ffmpeg-location");
+            dlArgs.add(ffmpegPath);
+        }
+        dlArgs.add("-x");
+        dlArgs.add("--audio-format"); dlArgs.add("wav");
+        dlArgs.add("-o"); dlArgs.add(tempFile.getFullPathName());
+        dlArgs.add(url);
+
+        juce::String output;
+        bool success = false;
+
+        if (runProcess(dlArgs, 600000, output)) // up to 10 minutes for the download
+            success = tempFile.existsAsFile();
+
+        if (success)
+        {
+            logFile.deleteFile();
         }
         else
         {
-            output = "Could not start shell process for download. Check if yt-dlp path is correct in settings.";
+            if (output.isEmpty())
+                output = "Could not start yt-dlp. Check the yt-dlp path in Settings.";
+            logFile.replaceWithText(output);
         }
-        
-        if (success)
-            logFile.deleteFile();
 
         auto self = juce::ReferenceCountedObjectPtr<DownloadThread>(this);
         juce::MessageManager::callAsync([self, success, output] {
@@ -152,6 +141,58 @@ public:
     }
 
 private:
+    // Runs an executable with the given arguments (no shell), capturing merged
+    // stdout+stderr. Returns false on launch failure or timeout. Cooperatively
+    // aborts if the thread is asked to exit.
+    bool runProcess(const juce::StringArray& args, int timeoutMs, juce::String& outputResult)
+    {
+        outputResult.clear();
+
+        juce::ChildProcess proc;
+        if (! proc.start(args)) // default stream flags merge stdout + stderr
+            return false;
+
+        juce::MemoryOutputStream collected;
+        char buffer[4096];
+        const auto startTime = juce::Time::getMillisecondCounter();
+
+        while (proc.isRunning())
+        {
+            if (threadShouldExit())
+            {
+                proc.kill();
+                outputResult = collected.toString();
+                return false;
+            }
+
+            auto numRead = proc.readProcessOutput(buffer, (int) sizeof(buffer));
+            if (numRead > 0)
+                collected.write(buffer, (size_t) numRead);
+            else
+                juce::Thread::sleep(20);
+
+            if ((int) (juce::Time::getMillisecondCounter() - startTime) > timeoutMs)
+            {
+                proc.kill();
+                collected << "\n\nProcess timed out.";
+                outputResult = collected.toString();
+                return false;
+            }
+        }
+
+        // Drain any output still buffered after the process has exited.
+        for (;;)
+        {
+            auto numRead = proc.readProcessOutput(buffer, (int) sizeof(buffer));
+            if (numRead <= 0)
+                break;
+            collected.write(buffer, (size_t) numRead);
+        }
+
+        outputResult = collected.toString();
+        return true;
+    }
+
     YTAudioProcessor& processor;
     juce::String url;
     juce::File tempFile;
@@ -160,6 +201,7 @@ private:
     // Settings cache
     juce::String wavOutputPath;
     juce::String ytDlpPath;
+    juce::String ffmpegPath;
 };
 
 //==============================================================================
@@ -549,6 +591,18 @@ namespace SettingKeys
 {
     static const juce::String wavOutputPath { "wavOutputPath" };
     static const juce::String ytDlpPath     { "ytDlpPath" };
+    static const juce::String ffmpegPath    { "ffmpegPath" };
+}
+
+static juce::String getDefaultFfmpegPath()
+{
+   #if JUCE_MAC
+    // DAW-launched plugins often have a minimal PATH that excludes Homebrew's bin.
+    return "/opt/homebrew/bin/ffmpeg";
+   #else
+    // On Windows / Linux, rely on ffmpeg being resolvable via PATH by default.
+    return "ffmpeg";
+   #endif
 }
 
 void YTAudioProcessor::initSettings()
@@ -567,6 +621,7 @@ void YTAudioProcessor::initSettings()
         // Set default values if they don't exist
         settings->setValue(SettingKeys::wavOutputPath, juce::File::getSpecialLocation(juce::File::userHomeDirectory).getChildFile("yt-wav").getFullPathName());
         settings->setValue(SettingKeys::ytDlpPath, "yt-dlp");
+        settings->setValue(SettingKeys::ffmpegPath, getDefaultFfmpegPath());
     }
 }
 
@@ -589,6 +644,17 @@ void YTAudioProcessor::setWavOutputPath(const juce::String& path)
 void YTAudioProcessor::setYtDlpPath(const juce::String& path)
 {
     settings->setValue(SettingKeys::ytDlpPath, path);
+    settings->saveIfNeeded();
+}
+
+juce::String YTAudioProcessor::getFfmpegPath()
+{
+    return settings->getValue(SettingKeys::ffmpegPath, getDefaultFfmpegPath());
+}
+
+void YTAudioProcessor::setFfmpegPath(const juce::String& path)
+{
+    settings->setValue(SettingKeys::ffmpegPath, path);
     settings->saveIfNeeded();
 }
 
