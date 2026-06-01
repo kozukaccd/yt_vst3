@@ -240,6 +240,9 @@ juce::AudioProcessorValueTreeState& YTAudioProcessor::getValueTreeState()
 
 YTAudioProcessor::~YTAudioProcessor()
 {
+    if (toolManager != nullptr)
+        toolManager->clearListener(this);
+
     if (activeDownloadThread)
         activeDownloadThread->stopThread(1000);
 
@@ -616,6 +619,10 @@ void YTAudioProcessor::initSettings()
 
     settings = std::make_unique<juce::PropertiesFile>(options);
 
+    // Managed tools live in a "bin" folder next to the settings file.
+    auto binDir = settings->getFile().getParentDirectory().getChildFile("bin");
+    toolManager = std::make_unique<ToolManager>(binDir);
+
     if (settings->getValue(SettingKeys::wavOutputPath).isEmpty())
     {
         // Set default values if they don't exist
@@ -656,6 +663,55 @@ void YTAudioProcessor::setFfmpegPath(const juce::String& path)
 {
     settings->setValue(SettingKeys::ffmpegPath, path);
     settings->saveIfNeeded();
+}
+
+//==============================================================================
+bool YTAudioProcessor::areExternalToolsReady()
+{
+    auto isFile = [] (const juce::String& p)
+    {
+        return p.isNotEmpty() && juce::File::isAbsolutePath(p) && juce::File(p).existsAsFile();
+    };
+
+    // Ready if the configured paths point at real executables, or the managed
+    // bin/ copies exist.
+    const bool ytOk = isFile(getYtDlpPath()) || toolManager->getYtDlpFile().existsAsFile();
+    const bool ffOk = isFile(getFfmpegPath()) || toolManager->getFfmpegFile().existsAsFile();
+    return ytOk && ffOk;
+}
+
+bool YTAudioProcessor::isToolSetupBusy() const
+{
+    return toolManager != nullptr && toolManager->isBusy();
+}
+
+void YTAudioProcessor::startToolSetup()
+{
+    if (toolManager == nullptr || toolManager->isBusy())
+        return;
+
+    statusMessage = "Starting setup...";
+    sendChangeMessage();
+    toolManager->startSetup(this);
+}
+
+void YTAudioProcessor::toolSetupProgress(const juce::String& message, double /*progress01*/)
+{
+    statusMessage = message;
+    sendChangeMessage();
+}
+
+void YTAudioProcessor::toolSetupFinished(bool success, const juce::String& message)
+{
+    if (success)
+    {
+        // Point the settings at the freshly downloaded, managed binaries.
+        setYtDlpPath(toolManager->getYtDlpFile().getFullPathName());
+        setFfmpegPath(toolManager->getFfmpegFile().getFullPathName());
+    }
+
+    statusMessage = message;
+    sendChangeMessage();
 }
 
 //==============================================================================

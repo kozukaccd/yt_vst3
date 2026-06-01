@@ -10,12 +10,14 @@
 
 #include <JuceHeader.h>
 #include "ea_soundtouch/include/SoundTouch.h"
+#include "ToolManager.h"
 
 //==============================================================================
 /**
 */
 class YTAudioProcessor  : public juce::AudioProcessor,
-                            public juce::ChangeBroadcaster
+                            public juce::ChangeBroadcaster,
+                            public ToolManager::Listener
 {
 public:
     class DownloadThread;
@@ -87,6 +89,17 @@ public:
     void setYtDlpPath(const juce::String& path);
     void setFfmpegPath(const juce::String& path);
 
+    //==============================================================================
+    // First-run tool setup (auto-download of yt-dlp / ffmpeg)
+    bool areExternalToolsReady();           // cheap check used to switch the settings UI
+    void startToolSetup();                  // begins the download on a worker thread
+    bool isToolSetupBusy() const;
+    ToolManager& getToolManager() { return *toolManager; }
+
+    // ToolManager::Listener
+    void toolSetupProgress (const juce::String& message, double progress01) override;
+    void toolSetupFinished (bool success, const juce::String& message) override;
+
 private:
     //==============================================================================
     // Audio processing chain
@@ -122,6 +135,9 @@ private:
     // Settings
     std::unique_ptr<juce::PropertiesFile> settings;
     void initSettings();
+
+    // First-run tool setup
+    std::unique_ptr<ToolManager> toolManager;
 
     juce::File temporaryMonoFile;
 

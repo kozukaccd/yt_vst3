@@ -12,6 +12,7 @@
       <FILE id="Xm8Fzw" name="PluginEditor.cpp" compile="1" resource="0"
             file="Source/PluginEditor.cpp"/>
       <FILE id="foL2Oq" name="PluginEditor.h" compile="0" resource="0" file="Source/PluginEditor.h"/>
+      <FILE id="tM0001" name="ToolManager.h" compile="0" resource="0" file="Source/ToolManager.h"/>
     </GROUP>
   </MAINGROUP>
   <MODULES>

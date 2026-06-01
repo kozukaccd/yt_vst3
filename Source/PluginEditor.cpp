@@ -318,6 +318,12 @@ YTAudioProcessorEditor::YTAudioProcessorEditor (YTAudioProcessor& p)
     ffmpegPathBrowseButton.setButtonText("Browse...");
     ffmpegPathBrowseButton.addListener(this);
     settingsGroup.addAndMakeVisible(ffmpegPathBrowseButton);
+
+    firstSetupButton.setButtonText("First-time Setup (download yt-dlp / ffmpeg)");
+    firstSetupButton.addListener(this);
+    settingsGroup.addAndMakeVisible(firstSetupButton);
+
+    updateSettingsUiMode();
     // --- End Settings UI ---
 
     setSize (800, 730); // Height accommodates Key + Speed sliders and the settings panel
@@ -426,6 +432,11 @@ void YTAudioProcessorEditor::resized()
     ffmpegPathBrowseButton.setBounds(row3.removeFromRight(80));
     ffmpegPathEditor.setBounds(row3.reduced(5, 0));
 
+    // First-time setup button occupies the centre of the group (shown only when
+    // tools are missing; overlaps the path rows, which are hidden in that mode).
+    auto fsArea = settingsGroup.getLocalBounds().reduced(padding * 2, padding * 3);
+    firstSetupButton.setBounds(fsArea.withSizeKeepingCentre(juce::jmin(440, fsArea.getWidth()), 40));
+
     // Bottom row: Version display
     auto bottomArea = bounds.removeFromBottom(bottomRowHeight + padding).reduced(padding, 0);
     versionLabel.setBounds(bottomArea.removeFromRight(80));
@@ -516,6 +527,11 @@ void YTAudioProcessorEditor::buttonClicked(juce::Button* button)
             ffmpegPathEditor.setText(path, juce::dontSendNotification);
         });
     }
+    else if (button == &firstSetupButton)
+    {
+        firstSetupButton.setEnabled(false);
+        audioProcessor.startToolSetup();
+    }
 }
 
 void YTAudioProcessorEditor::sliderValueChanged(juce::Slider* slider)
@@ -572,5 +588,28 @@ void YTAudioProcessorEditor::changeListenerCallback(juce::ChangeBroadcaster* sou
     if (source == &audioProcessor)
     {
         logDisplay.setText(audioProcessor.getStatusMessage(), juce::dontSendNotification);
+        updateSettingsUiMode();
+    }
+}
+
+void YTAudioProcessorEditor::updateSettingsUiMode()
+{
+    const bool ready = audioProcessor.areExternalToolsReady();
+    const bool busy  = audioProcessor.isToolSetupBusy();
+
+    auto setVisible = [ready] (juce::Component& c) { c.setVisible(ready); };
+    setVisible(wavPathLabel);    setVisible(wavPathEditor);    setVisible(wavPathBrowseButton);
+    setVisible(ytDlpPathLabel);  setVisible(ytDlpPathEditor);  setVisible(ytDlpPathBrowseButton);
+    setVisible(ffmpegPathLabel); setVisible(ffmpegPathEditor); setVisible(ffmpegPathBrowseButton);
+
+    firstSetupButton.setVisible(! ready);
+    firstSetupButton.setEnabled(! busy);
+
+    if (ready)
+    {
+        // Refresh in case a just-finished setup populated the paths.
+        wavPathEditor.setText(audioProcessor.getWavOutputPath(), juce::dontSendNotification);
+        ytDlpPathEditor.setText(audioProcessor.getYtDlpPath(), juce::dontSendNotification);
+        ffmpegPathEditor.setText(audioProcessor.getFfmpegPath(), juce::dontSendNotification);
     }
 }

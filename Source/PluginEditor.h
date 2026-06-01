@@ -50,6 +50,8 @@ public:
     void buttonClicked (juce::Button* button) override;
     void sliderValueChanged (juce::Slider* slider) override; // Added for Slider::Listener
     void timerCallback() override; // Added for Timer
+
+    void updateSettingsUiMode(); // Switches between "first setup" and normal settings UI
     
     void changeListenerCallback (juce::ChangeBroadcaster* source) override;
 
@@ -94,6 +96,9 @@ private:
     juce::Label ffmpegPathLabel;
     juce::TextEditor ffmpegPathEditor;
     juce::TextButton ffmpegPathBrowseButton;
+
+    // Shown only when yt-dlp / ffmpeg are not yet available.
+    juce::TextButton firstSetupButton;
 
     // Drawable objects for play icon
     std::unique_ptr<juce::Drawable> playIconDrawable;
