@@ -46,60 +46,19 @@ public:
 
         juce::File cookieFile = outputDir.getChildFile("www.youtube.com_cookies.txt");
 
-        // 2. Extract title and ID using yt-dlp --print (used to build the filename).
-        //    Arguments are passed directly to ChildProcess (no shell), so this works
-        //    identically on macOS and Windows without quoting/redirection tricks.
-        juce::StringArray metaArgs;
-        metaArgs.add(ytDlpPath);
-        if (cookieFile.existsAsFile())
-        {
-            metaArgs.add("--cookies");
-            metaArgs.add(cookieFile.getFullPathName());
-        }
-        metaArgs.add("--print"); metaArgs.add("title");
-        metaArgs.add("--print"); metaArgs.add("id");
-        metaArgs.add("--no-warnings");
-        metaArgs.add("--skip-download");
-        metaArgs.add(url);
+        // yt-dlp writes the final output file path here (after extraction/move).
+        auto pathFile = outputDir.getChildFile(".yt-dlp-last-output.txt");
+        if (pathFile.existsAsFile())
+            pathFile.deleteFile();
 
-        juce::String metaOutput;
-        juce::String videoTitle, videoId;
+        // Let yt-dlp build and sanitize the filename itself. --restrict-filenames keeps
+        // it ASCII-safe, which avoids invalid filenames on Windows for non-ASCII titles
+        // (the previous manual naming broke on e.g. Japanese titles -> "Invalid argument").
+        const auto outputTemplate = outputDir.getFullPathName()
+                                   + juce::File::getSeparatorString()
+                                   + "%(title)s-%(id)s.%(ext)s";
 
-        if (runProcess(metaArgs, 30000, metaOutput)) // 30 seconds for metadata
-        {
-            juce::StringArray lines;
-            lines.addLines(metaOutput);
-            lines.removeEmptyStrings();
-
-            if (lines.size() >= 2)
-            {
-                videoTitle = lines[0].trim();
-                videoId    = lines[1].trim();
-            }
-            else if (! metaOutput.containsIgnoreCase("ERROR"))
-            {
-                videoTitle = "unknown_title";
-            }
-        }
-        else
-        {
-            videoTitle = "timed_out_title";
-        }
-
-        if (videoTitle.isEmpty())
-            videoTitle = "unknown_title";
-        if (videoId.isEmpty())
-            videoId = juce::String(juce::Time::getCurrentTime().toMilliseconds());
-
-        videoTitle = videoTitle.replaceCharacters(" /\\?:*\"<>|", "_");
-        videoId    = videoId.replaceCharacters(" /\\?:*\"<>|", "_");
-
-        // 3. Construct final tempFile path
-        tempFile = outputDir.getChildFile(videoTitle + "_" + videoId + ".wav");
-        if (tempFile.existsAsFile())
-            tempFile.deleteFile();
-
-        // 4. Download and extract audio to WAV.
+        // Download + extract to WAV, and record the resulting path via --print-to-file.
         juce::StringArray dlArgs;
         dlArgs.add(ytDlpPath);
         if (cookieFile.existsAsFile())
@@ -112,19 +71,50 @@ public:
             dlArgs.add("--ffmpeg-location");
             dlArgs.add(ffmpegPath);
         }
+        dlArgs.add("--no-playlist");
+        dlArgs.add("--restrict-filenames");
         dlArgs.add("-x");
         dlArgs.add("--audio-format"); dlArgs.add("wav");
-        dlArgs.add("-o"); dlArgs.add(tempFile.getFullPathName());
+        dlArgs.add("-o"); dlArgs.add(outputTemplate);
+        dlArgs.add("--print-to-file"); dlArgs.add("after_move:filepath"); dlArgs.add(pathFile.getFullPathName());
+        dlArgs.add("--no-simulate"); // required so --print-to-file does not imply simulate
         dlArgs.add(url);
 
         juce::String output;
-        bool success = false;
+        const bool started = runProcess(dlArgs, 600000, output); // up to 10 minutes
 
-        if (runProcess(dlArgs, 600000, output)) // up to 10 minutes for the download
-            success = tempFile.existsAsFile();
+        // Determine the actual output file from what yt-dlp reported.
+        juce::File downloadedFile;
+        if (started && pathFile.existsAsFile())
+        {
+            juce::StringArray lines;
+            lines.addLines(pathFile.loadFileAsString());
+            lines.removeEmptyStrings();
+            if (! lines.isEmpty())
+                downloadedFile = juce::File(lines[lines.size() - 1].trim());
+            pathFile.deleteFile();
+        }
 
+        // Fallback: scan the captured output for yt-dlp's final destination line.
+        if (started && (downloadedFile == juce::File() || ! downloadedFile.existsAsFile()))
+        {
+            juce::StringArray outLines;
+            outLines.addLines(output);
+            for (int i = outLines.size(); --i >= 0;)
+            {
+                const auto& line = outLines.getReference(i);
+                if (line.contains("Destination:") && line.containsIgnoreCase(".wav"))
+                {
+                    juce::File cand(line.fromFirstOccurrenceOf("Destination:", false, false).trim());
+                    if (cand.existsAsFile()) { downloadedFile = cand; break; }
+                }
+            }
+        }
+
+        const bool success = downloadedFile != juce::File() && downloadedFile.existsAsFile();
         if (success)
         {
+            tempFile = downloadedFile;
             logFile.deleteFile();
         }
         else
