@@ -72,6 +72,8 @@ macOS (Xcode):
 2. xcodebuild -project Builds/MacOSX/YT.xcodeproj -target "YT - VST3" -configuration Release build
 3. 生成された YT.vst3 が ~/Library/Audio/Plug-Ins/VST3/ に自動コピーされる。
 
+Windows: 詳細は docs/windows-setup.md を参照（ビルド＋yt-dlp/ffmpegセットアップ）。
+
 Windows (Visual Studio 2022):
 1. 事前準備: Visual Studio 2022（「C++ によるデスクトップ開発」）、JUCE(Projucer)、yt-dlp.exe / ffmpeg.exe。
 2. Projucer で YT.jucer を開く。
