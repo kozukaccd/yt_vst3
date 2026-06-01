@@ -95,13 +95,14 @@ private:
     // sample-rate correction internally, so this always points at transportSource.
     juce::AudioSource* finalSource = nullptr;
 
+    // One SoundTouch instance per output channel (each processes a single mono stream).
     std::vector<soundtouch::SoundTouch> soundTouchInstances;
-    std::vector<soundtouch::FIFOSampleBuffer> outputFifos;
-    juce::AudioBuffer<float> tempBuffer;
-    juce::AudioBuffer<float> inputCopyBuffer;
-    
+    // Scratch buffer used to pull input from the source while feeding SoundTouch.
+    juce::AudioBuffer<float> feedBuffer;
+
     juce::AudioProcessorValueTreeState valueTreeState;
     std::atomic<float>* pitch = nullptr;
+    std::atomic<float>* speed = nullptr;
 
 
     // Waveform

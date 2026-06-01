@@ -236,7 +236,7 @@ YTAudioProcessorEditor::YTAudioProcessorEditor (YTAudioProcessor& p)
     addAndMakeVisible(horizontalLine);
     horizontalLine.setColour(juce::ComboBox::backgroundColourId, juce::Colours::lightgrey); // A subtle line
 
-    versionLabel.setText("v0.3", juce::dontSendNotification); // Updated version
+    versionLabel.setText("v0.4", juce::dontSendNotification); // Updated version
     versionLabel.setJustificationType(juce::Justification::bottomRight);
     addAndMakeVisible(versionLabel);
 
@@ -260,10 +260,24 @@ YTAudioProcessorEditor::YTAudioProcessorEditor (YTAudioProcessor& p)
     totalLengthLabel.setJustificationType(juce::Justification::centredRight);
     addAndMakeVisible(totalLengthLabel);
 
+    keyLabel.setText("Key", juce::dontSendNotification);
+    keyLabel.setJustificationType(juce::Justification::centred);
+    addAndMakeVisible(keyLabel);
+
     addAndMakeVisible(keySlider);
     keySlider.setSliderStyle(juce::Slider::LinearHorizontal);
     keySlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 20);
     keySliderAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(audioProcessor.getValueTreeState(), "pitch", keySlider);
+
+    speedLabel.setText("Speed", juce::dontSendNotification);
+    speedLabel.setJustificationType(juce::Justification::centred);
+    addAndMakeVisible(speedLabel);
+
+    addAndMakeVisible(speedSlider);
+    speedSlider.setSliderStyle(juce::Slider::LinearHorizontal);
+    speedSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 20);
+    speedSlider.setTextValueSuffix("x");
+    speedSliderAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(audioProcessor.getValueTreeState(), "speed", speedSlider);
 
     // --- Settings UI Initialization ---
     settingsGroup.setText("Settings");
@@ -294,7 +308,7 @@ YTAudioProcessorEditor::YTAudioProcessorEditor (YTAudioProcessor& p)
     settingsGroup.addAndMakeVisible(ytDlpPathBrowseButton);
     // --- End Settings UI ---
 
-    setSize (800, 620); // Increase height for settings
+    setSize (800, 680); // Height accommodates Key + Speed sliders and settings
 
     startTimerHz(30); // Start timer for UI updates
 }
@@ -349,31 +363,30 @@ void YTAudioProcessorEditor::resized()
     currentPositionLabel.setBounds(timeLabelsArea.removeFromLeft(timeLabelsArea.getWidth() / 2).reduced(padding, 0));
     totalLengthLabel.setBounds(timeLabelsArea.reduced(padding, 0));
 
-    // 8. Positioning for playButton, pauseButton, and stopButton
+    // 8. Transport buttons (play / pause / stop), centred
     const int buttonWidth = 60;
     const int buttonHeight = 36;
     const int buttonSpacing = 5;
     const int totalButtonsWidth = (buttonWidth * 3) + (buttonSpacing * 2);
-    const int sliderWidth = 150;
-    const int totalControlsWidth = totalButtonsWidth + buttonSpacing + sliderWidth;
-    
-    auto controlsArea = bounds.removeFromTop(buttonHeight + padding);
-    controlsArea.setWidth(totalControlsWidth);
-    controlsArea.setCentre(controlsArea.getCentreX(), controlsArea.getCentreY());
 
-    auto buttonsArea = controlsArea.removeFromLeft(totalButtonsWidth);
+    auto controlsArea = bounds.removeFromTop(buttonHeight + padding);
+    auto buttonsArea = controlsArea.withSizeKeepingCentre(totalButtonsWidth, buttonHeight);
 
     playButton.setBounds(buttonsArea.removeFromLeft(buttonWidth));
     buttonsArea.removeFromLeft(buttonSpacing);
     pauseButton.setBounds(buttonsArea.removeFromLeft(buttonWidth));
     buttonsArea.removeFromLeft(buttonSpacing);
     stopButton.setBounds(buttonsArea.removeFromLeft(buttonWidth));
-    
-    controlsArea.removeFromLeft(buttonSpacing);
-    keySlider.setBounds(controlsArea.removeFromLeft(sliderWidth));
 
-    // Adjust the main bounds for subsequent elements
-    bounds.removeFromTop(buttonHeight + padding);
+    // 9. Key and Speed sliders (label on top, slider with text box below)
+    auto slidersRow = bounds.removeFromTop(labelHeight + sliderHeight + 25 + padding);
+    auto keyArea   = slidersRow.removeFromLeft(slidersRow.getWidth() / 2).reduced(padding, 0);
+    auto speedArea = slidersRow.reduced(padding, 0);
+
+    keyLabel.setBounds(keyArea.removeFromTop(labelHeight));
+    keySlider.setBounds(keyArea);
+    speedLabel.setBounds(speedArea.removeFromTop(labelHeight));
+    speedSlider.setBounds(speedArea);
 
     // Settings Group
     auto settingsArea = bounds.removeFromBottom(150); // Allocate space for settings (height adjusted previously)

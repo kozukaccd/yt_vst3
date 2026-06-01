@@ -175,7 +175,8 @@ YTAudioProcessor::YTAudioProcessor()
                        ),
       valueTreeState(*this, nullptr, "PARAMETERS",
           {
-              std::make_unique<juce::AudioParameterFloat>("pitch", "Pitch", juce::NormalisableRange<float>(-12.0f, 12.0f, 1.0f), 0.0f)
+              std::make_unique<juce::AudioParameterFloat>("pitch", "Pitch", juce::NormalisableRange<float>(-12.0f, 12.0f, 1.0f), 0.0f),
+              std::make_unique<juce::AudioParameterFloat>("speed", "Speed", juce::NormalisableRange<float>(0.5f, 2.0f, 0.01f), 1.0f)
           }),
       thumbnailCache(5),
       thumbnail(512, formatManager, thumbnailCache)
@@ -187,6 +188,7 @@ YTAudioProcessor::YTAudioProcessor()
     statusMessage = "Ready.";
     finalSource = &transportSource;
     pitch = valueTreeState.getRawParameterValue("pitch");
+    speed = valueTreeState.getRawParameterValue("speed");
 }
 
 juce::AudioProcessorValueTreeState& YTAudioProcessor::getValueTreeState()
@@ -274,20 +276,14 @@ void YTAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     soundTouchInstances.resize(getTotalNumOutputChannels());
     for (auto& st : soundTouchInstances)
     {
-        st.setSampleRate(sampleRate);
+        st.setSampleRate((unsigned int) sampleRate);
         st.setChannels(1); // SoundTouch processes one channel at a time
-        st.setPitchSemiTones(0.0f);
-        st.flush();
+        st.setPitchSemiTones(0.0);
+        st.setTempo(1.0);
+        st.clear();
     }
 
-    outputFifos.resize(getTotalNumOutputChannels());
-    for (auto& fifo : outputFifos)
-    {
-        fifo.clear();
-    }
-
-    tempBuffer.setSize(1, samplesPerBlock * 2);
-    inputCopyBuffer.setSize(getTotalNumOutputChannels(), samplesPerBlock);
+    feedBuffer.setSize(getTotalNumOutputChannels(), samplesPerBlock);
 }
 
 void YTAudioProcessor::releaseResources()
@@ -321,40 +317,61 @@ void YTAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     juce::ScopedNoDenormals noDenormals;
     buffer.clear();
 
-    if (transportSource.isPlaying())
+    if (! transportSource.isPlaying() || finalSource == nullptr)
+        return;
+
+    const int numOutputChannels = getTotalNumOutputChannels();
+    const int numSamples        = buffer.getNumSamples();
+    const auto pitchValue       = pitch->load();
+    const auto speedValue       = speed->load();
+
+    // Fast path: no pitch shift and normal speed -> pass the source straight through.
+    if (pitchValue == 0.0f && speedValue == 1.0f)
     {
-        auto totalNumInputChannels  = getTotalNumInputChannels();
-        auto totalNumOutputChannels = getTotalNumOutputChannels();
+        finalSource->getNextAudioBlock(juce::AudioSourceChannelInfo(buffer));
 
-        for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
-            buffer.clear (i, 0, buffer.getNumSamples());
+        // Keep SoundTouch empty so re-engaging it later starts from a clean state.
+        for (auto& st : soundTouchInstances)
+            st.clear();
 
-        if (finalSource != nullptr)
-            finalSource->getNextAudioBlock(juce::AudioSourceChannelInfo(buffer));
-
-        auto pitchValue = pitch->load();
-
-        if (pitchValue != 0.0f)
-        {
-            inputCopyBuffer.makeCopyOf(buffer);
-            buffer.clear();
-
-            for (int channel = 0; channel < totalNumOutputChannels; ++channel)
-            {
-                soundTouchInstances[channel].setPitchSemiTones(pitchValue);
-                soundTouchInstances[channel].putSamples(inputCopyBuffer.getReadPointer(channel), inputCopyBuffer.getNumSamples());
-                soundTouchInstances[channel].receiveSamples(buffer.getWritePointer(channel), buffer.getNumSamples());
-            }
-        }
-        else
-        {
-            // If pitch is zero, make sure SoundTouch and FIFOs are flushed
-            for(auto& st : soundTouchInstances)
-                st.clear();
-            for (auto& fifo : outputFifos)
-                fifo.clear();
-        }
+        return;
     }
+
+    // Time-stretch / pitch-shift path.
+    // SoundTouch decouples the number of input and output samples, so we must pull
+    // input from the source until enough output samples are available to fill the block.
+    for (int ch = 0; ch < numOutputChannels && ch < (int) soundTouchInstances.size(); ++ch)
+    {
+        soundTouchInstances[ch].setPitchSemiTones((double) pitchValue);
+        soundTouchInstances[ch].setTempo((double) speedValue);
+    }
+
+    const int feedChunk = juce::jmin(numSamples, feedBuffer.getNumSamples());
+
+    // Safety cap to guarantee the feed loop always terminates.
+    const int maxIterations = 64;
+    int iterations = 0;
+
+    while ((int) soundTouchInstances[0].numSamples() < numSamples && iterations++ < maxIterations)
+    {
+        if (transportSource.hasStreamFinished())
+        {
+            // Drain remaining buffered samples once the source is exhausted.
+            for (auto& st : soundTouchInstances)
+                st.flush();
+            break;
+        }
+
+        feedBuffer.clear();
+        juce::AudioSourceChannelInfo info(&feedBuffer, 0, feedChunk);
+        finalSource->getNextAudioBlock(info);
+
+        for (int ch = 0; ch < numOutputChannels && ch < (int) soundTouchInstances.size(); ++ch)
+            soundTouchInstances[ch].putSamples(feedBuffer.getReadPointer(ch), (unsigned int) feedChunk);
+    }
+
+    for (int ch = 0; ch < numOutputChannels && ch < (int) soundTouchInstances.size(); ++ch)
+        soundTouchInstances[ch].receiveSamples(buffer.getWritePointer(ch), (unsigned int) numSamples);
 }
 
 //==============================================================================

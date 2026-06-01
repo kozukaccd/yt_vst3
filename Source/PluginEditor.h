@@ -74,6 +74,10 @@ private:
     juce::Slider keySlider;
     juce::Label keyLabel;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> keySliderAttachment;
+
+    juce::Slider speedSlider;
+    juce::Label speedLabel;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> speedSliderAttachment;
     
     WaveformDisplay waveformDisplay;
     juce::Component horizontalLine;
