@@ -90,9 +90,9 @@ private:
     // Audio processing chain
     std::unique_ptr<juce::AudioFormatReaderSource> readerSource;
     juce::AudioTransportSource transportSource;
-    std::unique_ptr<juce::ResamplingAudioSource> resamplerSource;
 
-    // Pointer to the final source in the chain
+    // Pointer to the final source in the chain. AudioTransportSource handles any
+    // sample-rate correction internally, so this always points at transportSource.
     juce::AudioSource* finalSource = nullptr;
 
     std::vector<soundtouch::SoundTouch> soundTouchInstances;

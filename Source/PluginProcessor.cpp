@@ -271,9 +271,6 @@ void YTAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     transportSource.prepareToPlay(samplesPerBlock, sampleRate);
 
-    if (resamplerSource.get() != nullptr)
-        resamplerSource->prepareToPlay(samplesPerBlock, sampleRate);
-
     soundTouchInstances.resize(getTotalNumOutputChannels());
     for (auto& st : soundTouchInstances)
     {
@@ -296,9 +293,6 @@ void YTAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 void YTAudioProcessor::releaseResources()
 {
     transportSource.releaseResources();
-
-    if (resamplerSource.get() != nullptr)
-        resamplerSource->releaseResources();
 }
 
 #ifndef JucePlugin_PreferredChannelConfigurations
@@ -439,21 +433,16 @@ void YTAudioProcessor::loadFile(const juce::File& file)
     readerSource = std::make_unique<juce::AudioFormatReaderSource>(formatManager.createReaderFor(temporaryMonoFile), true);
     delete originalReader; // Clean up original reader
     
-    // Continue with common setup for transportSource and resampler
+    // Continue with common setup for transportSource.
     if (readerSource->getAudioFormatReader() != nullptr)
     {
+        // The 4th argument (sourceSampleRateToCorrectFor) tells AudioTransportSource to
+        // internally resample from the file's sample rate to the host's prepared sample
+        // rate. This handles all sample-rate conversion, so no external ResamplingAudioSource
+        // is needed (and adding one here would double-resample and, if left unprepared,
+        // write out of bounds).
         transportSource.setSource(readerSource.get(), 0, nullptr, readerSource->getAudioFormatReader()->sampleRate);
-
-        if (readerSource->getAudioFormatReader()->sampleRate != getSampleRate())
-        {
-            resamplerSource = std::make_unique<juce::ResamplingAudioSource>(&transportSource, false);
-            resamplerSource->setResamplingRatio(readerSource->getAudioFormatReader()->sampleRate / getSampleRate());
-            finalSource = resamplerSource.get();
-        }
-        else
-        {
-            finalSource = &transportSource;
-        }
+        finalSource = &transportSource;
 
         statusMessage = "Loaded file (mono conversion applied): " + temporaryMonoFile.getFileName();
     }
@@ -519,7 +508,6 @@ void YTAudioProcessor::reset()
 {
     transportSource.stop(); // Stop playback
     transportSource.setSource(nullptr); // Unload the file
-    resamplerSource.reset();
     readerSource.reset();
     finalSource = &transportSource;
     isPlayingState = false;
