@@ -1,4 +1,4 @@
-# YT — YouTube Player (VST3)
+# Bard — YouTube Player (VST3)
 
 YouTube の URL から音源をダウンロードし、**DAW 内で独立して再生**できる VST3 インストゥルメント・プラグインです。DAW の再生ヘッドに依存せず、プラグイン単体で再生・停止・シークができます。
 
@@ -15,7 +15,7 @@ YouTube の URL から音源をダウンロードし、**DAW 内で独立して�
 - 外部ツール: **yt-dlp** と **ffmpeg**（ダウンロード機能に必要。下記セットアップで自動取得可）
 
 ## インストール
-### 配布済みの `YT.vst3` を使う場合
+### 配布済みの `Bard.vst3` を使う場合
 プラグインを以下へコピーして DAW を再起動：
 - macOS: `~/Library/Audio/Plug-Ins/VST3/`
 - Windows: `C:\Program Files\Common Files\VST3\`
@@ -23,16 +23,16 @@ YouTube の URL から音源をダウンロードし、**DAW 内で独立して�
 ### ソースからビルドする場合
 - macOS:
   ```
-  xcodebuild -project Builds/MacOSX/YT.xcodeproj -target "YT - VST3" -configuration Release build
+  xcodebuild -project Builds/MacOSX/Bard.xcodeproj -target "Bard - VST3" -configuration Release build
   ```
-  生成された `YT.vst3` は `~/Library/Audio/Plug-Ins/VST3/` に自動コピーされます。
+  生成された `Bard.vst3` は `~/Library/Audio/Plug-Ins/VST3/` に自動コピーされます。
 - Windows: 手順は [`docs/windows-setup.md`](docs/windows-setup.md) を参照（Projucer → Visual Studio 2022）。
 
 ## 初回セットアップ（yt-dlp / ffmpeg）
 ダウンロード機能には `yt-dlp` と `ffmpeg` が必要です。
 
 - **自動（推奨）**: 設定パネルにツール未検出時は「**First-time Setup**」ボタンが表示されます。押すと公式配布元から自動でダウンロード・検証（SHA-256）し、アプリ管理フォルダに配置します。
-  - 保存先: macOS `~/Library/Application Support/YourCompanyName/YT/bin/`、Windows `%APPDATA%\YourCompanyName\YT\bin\`
+  - 保存先: macOS `~/Library/Application Support/YourCompanyName/Bard/bin/`、Windows `%APPDATA%\YourCompanyName\Bard\bin\`
 - **手動**: 既に `yt-dlp` / `ffmpeg` を導入済みなら、設定パネルの各「**Browse...**」で実行ファイルを指定できます（ネットワーク制限環境などの保険）。
 
 ## 使い方
@@ -47,8 +47,8 @@ YouTube の URL から音源をダウンロードし、**DAW 内で独立して�
 - **yt-dlp Path** / **ffmpeg Path**: 実行ファイルのパス（自動セットアップ時は自動入力）
 
 設定の保存場所:
-- macOS: `~/Library/Application Support/YourCompanyName/YT/YT.settings`
-- Windows: `%APPDATA%\YourCompanyName\YT\YT.settings`
+- macOS: `~/Library/Application Support/YourCompanyName/Bard/Bard.settings`
+- Windows: `%APPDATA%\YourCompanyName\Bard\Bard.settings`
 
 ## トラブルシュート
 - ダウンロード失敗時は、保存先フォルダの `yt-dlp-debug.log` にログが出ます。

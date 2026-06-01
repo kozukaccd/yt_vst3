@@ -18,9 +18,9 @@ yt-dlp / ffmpeg を、アプリに同梱せず**初回セットアップ時に�
 
 | OS | ベース | 実効パス（例） |
 |---|---|---|
-| macOS | `~/Library/Application Support/<Company>/YT/` | `.../YT/bin/yt-dlp`, `.../YT/bin/ffmpeg` |
-| Windows | `%APPDATA%\<Company>\YT\` | `...\YT\bin\yt-dlp.exe`, `...\YT\bin\ffmpeg.exe` |
-| Linux | `~/.config/<Company>/YT/` | `.../YT/bin/yt-dlp`, `.../YT/bin/ffmpeg` |
+| macOS | `~/Library/Application Support/<Company>/Bard/` | `.../Bard/bin/yt-dlp`, `.../Bard/bin/ffmpeg` |
+| Windows | `%APPDATA%\<Company>\Bard\` | `...\Bard\bin\yt-dlp.exe`, `...\Bard\bin\ffmpeg.exe` |
+| Linux | `~/.config/<Company>/Bard/` | `.../Bard/bin/yt-dlp`, `.../Bard/bin/ffmpeg` |
 
 - `<Company>` は現状 `initSettings()` のフォルダ名が `"YourCompanyName"` 固定。**要判断**: 実運用前に `JucePlugin_Manufacturer`（= `ichiba`）等へ統一するか。
 - 取得先は `juce::PropertiesFile` の親ディレクトリ（`settings->getFile().getParentDirectory()`）から `bin` を派生させ、OS差を吸収する。

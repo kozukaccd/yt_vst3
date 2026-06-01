@@ -68,20 +68,20 @@ run() メソッド内で juce::ChildProcess を実行。
 
 5. ビルド手順
 macOS (Xcode):
-1. Builds/MacOSX/YT.xcodeproj を開く（または下記コマンド）。
-2. xcodebuild -project Builds/MacOSX/YT.xcodeproj -target "YT - VST3" -configuration Release build
-3. 生成された YT.vst3 が ~/Library/Audio/Plug-Ins/VST3/ に自動コピーされる。
+1. Builds/MacOSX/Bard.xcodeproj を開く（または下記コマンド）。
+2. xcodebuild -project Builds/MacOSX/Bard.xcodeproj -target "Bard - VST3" -configuration Release build
+3. 生成された Bard.vst3 が ~/Library/Audio/Plug-Ins/VST3/ に自動コピーされる。
 
 Windows: 詳細は docs/windows-setup.md を参照（ビルド＋yt-dlp/ffmpegセットアップ）。
 
 Windows (Visual Studio 2022):
 1. 事前準備: Visual Studio 2022（「C++ によるデスクトップ開発」）、JUCE(Projucer)、yt-dlp.exe / ffmpeg.exe。
-2. Projucer で YT.jucer を開く。
+2. Projucer で Bard.jucer を開く。
    - juce_* モジュールはグローバルパス参照なので、Projucer の global path に JUCE/modules を設定。
    - ea_soundtouch はリポジトリ内 modules/ を参照（設定済み）。
-3. 「Save Project」で Builds/VisualStudio2022/YT.sln を生成（VS2022 エクスポーターは .jucer に追加済み）。
-4. YT.sln を開き、Release / x64 で YT_VST3 ターゲットをビルド。
-5. 生成された YT.vst3 を C:\Program Files\Common Files\VST3\ にコピー。
+3. 「Save Project」で Builds/VisualStudio2022/Bard.sln を生成（VS2022 エクスポーターは .jucer に追加済み）。
+4. Bard.sln を開き、Release / x64 で Bard_VST3 ターゲットをビルド。
+5. 生成された Bard.vst3 を C:\Program Files\Common Files\VST3\ にコピー。
 
 ダウンロード機能の設定:
 - yt-dlp / ffmpeg は実行ファイルへのパスをプラグインの Settings 欄で指定可能。
