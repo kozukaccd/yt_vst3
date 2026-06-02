@@ -37,7 +37,8 @@ void WaveformDisplay::paint(juce::Graphics& g)
         double endTime = startTime + visibleDuration;
         
         g.setColour(juce::Colour(75, 161, 171));
-        thumbnail.drawChannels(g, waveformArea, startTime, endTime, 1.0f);
+        // Draw only the left channel (channel 0); playback itself is stereo.
+        thumbnail.drawChannel(g, waveformArea, startTime, endTime, 0, 1.0f);
         
         // Draw a playhead marker
         g.setColour(juce::Colours::red);
@@ -236,7 +237,7 @@ YTAudioProcessorEditor::YTAudioProcessorEditor (YTAudioProcessor& p)
     addAndMakeVisible(horizontalLine);
     horizontalLine.setColour(juce::ComboBox::backgroundColourId, juce::Colours::lightgrey); // A subtle line
 
-    versionLabel.setText("v0.5", juce::dontSendNotification); // Updated version
+    versionLabel.setText("v0.6", juce::dontSendNotification); // Updated version
     versionLabel.setJustificationType(juce::Justification::bottomRight);
     addAndMakeVisible(versionLabel);
 

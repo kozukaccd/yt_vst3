@@ -434,58 +434,19 @@ void YTAudioProcessor::loadFile(const juce::File& file)
 {
     reset(); // Reset everything, including deleting any old temporary mono file
 
-    auto* originalReader = formatManager.createReaderFor(file);
-    if (originalReader == nullptr)
+    auto* reader = formatManager.createReaderFor(file);
+    if (reader == nullptr)
     {
         statusMessage = "Error: Could not create reader for file " + file.getFileName();
         sendChangeMessage();
         return;
     }
 
-    // Always attempt to create a mono version to simplify logic and ensure single channel for thumbnail
-    temporaryMonoFile = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("temp_mono_audio_" + juce::String(juce::Time::getCurrentTime().toMilliseconds()) + ".wav");
+    // Play the original file as-is so stereo is preserved. (The waveform display
+    // intentionally draws only the left channel; playback uses all channels.)
+    thumbnail.setSource(new juce::FileInputSource(file));
+    readerSource = std::make_unique<juce::AudioFormatReaderSource>(reader, true); // takes ownership
 
-    if (temporaryMonoFile.existsAsFile())
-        temporaryMonoFile.deleteFile();
-
-    // Create a buffer to hold the audio data (enough for all original channels)
-    juce::AudioBuffer<float> tempBuffer(originalReader->numChannels, (int) originalReader->lengthInSamples);
-    
-    // Read all channels from the original reader into tempBuffer
-    // This is the read(AudioBuffer<float>* buffer, int startSampleInDestBuffer, int numSamples, int64 readerStartSample, bool useReaderLeftChan, bool useReaderRightChan) overload
-    // where useReaderLeftChan and useReaderRightChan control which source channels are read into the destination buffer,
-    // and if destBuffer is mono, it will sum them or pick one.
-    originalReader->read(&tempBuffer, 0, (int) originalReader->lengthInSamples, 0, true, true);
-
-    // Create a mono buffer and copy the left channel (channel 0) from tempBuffer
-    juce::AudioBuffer<float> monoBuffer(1, tempBuffer.getNumSamples());
-    monoBuffer.copyFrom(0, 0, tempBuffer, 0, 0, tempBuffer.getNumSamples()); // Copy from original channel 0
-
-    // Create a writer for the temporary mono WAV file
-    if (auto writer = std::unique_ptr<juce::AudioFormatWriter>(juce::WavAudioFormat().createWriterFor(new juce::FileOutputStream(temporaryMonoFile),
-                                                                                                      originalReader->sampleRate,
-                                                                                                      1, // 1 channel
-                                                                                                      originalReader->bitsPerSample,
-                                                                                                      {}, // Empty metadata
-                                                                                                      0))) // Default quality
-    {
-        writer->writeFromAudioSampleBuffer(monoBuffer, 0, monoBuffer.getNumSamples());
-        writer->flush(); // Ensure data is written to disk
-    }
-    else
-    {
-        statusMessage = "Error: Could not create temporary mono file writer.";
-        sendChangeMessage();
-        delete originalReader; // Clean up original reader
-        return;
-    }
-
-    // Now, set the thumbnail and transport source to use the temporary mono file
-    thumbnail.setSource(new juce::FileInputSource(temporaryMonoFile));
-    readerSource = std::make_unique<juce::AudioFormatReaderSource>(formatManager.createReaderFor(temporaryMonoFile), true);
-    delete originalReader; // Clean up original reader
-    
-    // Continue with common setup for transportSource.
     if (readerSource->getAudioFormatReader() != nullptr)
     {
         // The 4th argument (sourceSampleRateToCorrectFor) tells AudioTransportSource to
@@ -496,13 +457,13 @@ void YTAudioProcessor::loadFile(const juce::File& file)
         transportSource.setSource(readerSource.get(), 0, nullptr, readerSource->getAudioFormatReader()->sampleRate);
         finalSource = &transportSource;
 
-        statusMessage = "Loaded file (mono conversion applied): " + temporaryMonoFile.getFileName();
+        statusMessage = "Loaded file: " + file.getFileName();
     }
     else
     {
-        statusMessage = "Error: Could not set up transport source with " + temporaryMonoFile.getFileName();
+        statusMessage = "Error: Could not set up transport source with " + file.getFileName();
     }
-    
+
     sendChangeMessage();
 }
 
