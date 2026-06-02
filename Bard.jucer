@@ -2,7 +2,7 @@
 
 <JUCERPROJECT id="OpEybb" name="Bard" projectType="audioplug" useAppConfig="0"
               addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" pluginManufacturer="ichiba"
-              pluginVST3Category="Instrument,Synth" pluginCharacteristicsValue="pluginIsSynth">
+              pluginVST3Category="Instrument,Synth" pluginCharacteristicsValue="pluginIsSynth,pluginWantsMidiIn">
   <MAINGROUP id="KtvJEJ" name="Bard">
     <GROUP id="{A2A77B50-0E8E-A8B1-9088-73B45A00AB49}" name="Source">
       <FILE id="zMaXvz" name="PluginProcessor.cpp" compile="1" resource="0"
