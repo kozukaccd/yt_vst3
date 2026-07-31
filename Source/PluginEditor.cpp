@@ -237,7 +237,7 @@ YTAudioProcessorEditor::YTAudioProcessorEditor (YTAudioProcessor& p)
     addAndMakeVisible(horizontalLine);
     horizontalLine.setColour(juce::ComboBox::backgroundColourId, juce::Colours::lightgrey); // A subtle line
 
-    versionLabel.setText("v0.6", juce::dontSendNotification); // Updated version
+    versionLabel.setText("v1.0", juce::dontSendNotification); // Updated version
     versionLabel.setJustificationType(juce::Justification::bottomRight);
     addAndMakeVisible(versionLabel);
 
